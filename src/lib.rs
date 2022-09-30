@@ -8,6 +8,36 @@
 /// Rice errors
 #[derive(Debug)]
 pub enum Error {
+    /// Generated certificate is too large
+    CertificateTooLarge(arrayvec::CapacityError),
+
+    /// Invalid CDI ID
+    InvalidCdiId(hex::FromHexError),
+
+    /// Invalid CSR
+    InvalidCertReq(der::Error),
+
+    /// Invalid DER payload
+    InvalidDer(der::Error),
+
+    /// Invalid data digest
+    InvalidDigest(der::Error),
+
+    /// Invalid X.509 extension DER
+    InvalidExtensionDer(der::Error),
+
+    /// Invalid public key bytes
+    InvalidPublicKey,
+
+    /// Invalid public key DER
+    InvalidPublicKeyDer(spki::Error),
+
+    /// Invalid digital signature
+    InvalidSignature,
+
+    /// Invalid X.509 TCB info extension DER
+    InvalidTcbInfoExtensionDer(der::Error),
+
     /// Failed to expand the extracted key
     InvalidExpansion(hkdf::InvalidLength),
 
@@ -16,6 +46,9 @@ pub enum Error {
 
     /// Next CDI is not generated
     MissingNextCdi,
+
+    /// Unsupported signing algorithm
+    UnsupportedAlgorithm(const_oid::ObjectIdentifier),
 }
 
 /// Custom DICE result.
@@ -29,3 +62,6 @@ pub mod layer;
 
 // Key Derivation Function module
 mod kdf;
+
+/// X.509 certificate module
+pub mod x509;
