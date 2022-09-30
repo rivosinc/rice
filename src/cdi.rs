@@ -44,6 +44,11 @@ pub(crate) const ASYM_SALT: [u8; 64] = [
     0xF1, 0x67, 0x9B, 0x05, 0xAB, 0x1C, 0xA5, 0xD1, 0xAF, 0xFB, 0x78, 0x9C, 0xCD, 0x2B, 0x0B, 0x3B,
 ];
 
+/// The CDI ID length.
+/// The CDI ID is a fixed length derivation of the public key associated
+/// with a CDI.
+pub const CDI_ID_LEN: usize = 20;
+
 /// Extract and expand an asymetric key pair from a CDI.
 fn key_pair_from_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8]) -> Result<Keypair> {
     let mut private_key_bytes = [0u8; SECRET_KEY_LENGTH];
@@ -112,5 +117,23 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, 
             _pd_d: PhantomData,
             _pd_h: PhantomData,
         })
+    }
+
+    /// The ED25519 key pair for the CDI
+    pub fn key_pair(&self) -> &Keypair {
+        &self.key_pair
+    }
+
+    /// CDI Identifier based on the CDI public key.
+    pub fn id(&self) -> Result<[u8; CDI_ID_LEN]> {
+        let mut cdi_id = [0u8; CDI_ID_LEN];
+        kdf::<D, H>(
+            self.key_pair.public.as_bytes(),
+            &ID_SALT,
+            &[b"CDI_ID"],
+            &mut cdi_id,
+        )?;
+
+        Ok(cdi_id)
     }
 }
