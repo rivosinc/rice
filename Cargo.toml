@@ -19,3 +19,4 @@ hmac = "0.12.1"
 sha2 = {version = "0.10", default-features = false }
 spin = { version = "*", default-features = false, features = ["rwlock"] }
 spki = "0.6.0"
+zeroize = "1.5.7"

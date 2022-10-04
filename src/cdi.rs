@@ -8,6 +8,7 @@ use digest::Digest;
 use ed25519_dalek::{Keypair, SecretKey, SECRET_KEY_LENGTH};
 use generic_array::{ArrayLength, GenericArray};
 use hkdf::HmacImpl;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Compound Device Identifier (CDI) Types.
 #[derive(Debug, Copy, Clone)]
@@ -69,6 +70,20 @@ pub struct CompoundDeviceIdentifier<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D
 
     _pd_d: PhantomData<D>,
     _pd_h: PhantomData<H>,
+}
+
+impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for CompoundDeviceIdentifier<N, D, H> {
+    fn zeroize(&mut self) {
+        self.cdi.zeroize();
+        self.key_pair.to_bytes().zeroize();
+        self._pd_d.zeroize();
+        self._pd_h.zeroize();
+    }
+}
+
+impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop
+    for CompoundDeviceIdentifier<N, D, H>
+{
 }
 
 impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, D, H> {
