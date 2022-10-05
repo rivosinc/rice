@@ -22,6 +22,7 @@ use crate::{
             Extension, Extensions,
         },
         name::{Name, RdnSequence, RelativeDistinguishedName},
+        request::CertReq,
         time::{Time, Validity},
         MAX_CERT_ATV, MAX_CERT_EXTENSIONS, MAX_CERT_RDN,
     },
@@ -192,28 +193,73 @@ impl<'a> Certificate<'a> {
     /// # Parameters
     ///
     /// @current_cdi: The current layer CDI.
-    /// @next CDI: The next layer CDI.
+    /// @next_cdi: The next layer CDI.
     /// @certificate_buf: Buffer to hold the certificate DER.
     pub fn from_layer<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         next_cdi: &CompoundDeviceIdentifier<N, D, H>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
-        let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
-        hex::encode_to_slice(&current_cdi.id()?, &mut current_cdi_id)
-            .map_err(Error::InvalidCdiId)?;
-
-        let mut next_cdi_id = [0u8; 2 * CDI_ID_LEN];
-        hex::encode_to_slice(&next_cdi.id()?, &mut next_cdi_id).map_err(Error::InvalidCdiId)?;
-
         // The serial number is the next layer CDI ID
-        let serial_number = UIntRef::new(&next_cdi_id).map_err(Error::InvalidDer)?;
-
-        // Issuer contains one ATV for one RDN: `SN=<Current CDI_ID>`
-        let issuer = x509_serial_number(&current_cdi_id)?;
+        let next_cdi_id = next_cdi.id()?;
 
         // Subject contains one ATV for one RDN: `SN=<Next CDI_ID>`
         let subject = x509_serial_number(&next_cdi_id)?;
+
+        // The subject public key is the next CDI derived public key.
+        let subject_public_key_info = SubjectPublicKeyInfo {
+            algorithm: ed25519::pkcs8::ALGORITHM_ID,
+            subject_public_key: next_cdi.key_pair().public.as_bytes(),
+        };
+
+        Certificate::from_current_cdi(
+            current_cdi,
+            &next_cdi_id,
+            subject,
+            subject_public_key_info,
+            certificate_buf,
+        )
+    }
+
+    /// Build a certificate from the current CDI and a Certificate Signing Request (CSR)
+    ///
+    /// # Parameters
+    ///
+    /// @current_cdi: The current layer CDI.
+    /// @csr: The certificate signing request.
+    /// @certificate_buf: Buffer to hold the certificate DER.
+    pub fn from_csr<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
+        current_cdi: &CompoundDeviceIdentifier<N, D, H>,
+        csr: &CertReq<'a>,
+        certificate_buf: &'a mut [u8],
+    ) -> Result<&'a [u8]> {
+        // The serial number is derived from the CSR public key.
+        let mut cdi_id = [0u8; CDI_ID_LEN * 2];
+        csr.cdi_id::<D, H>(&mut cdi_id)?;
+
+        Certificate::from_current_cdi(
+            current_cdi,
+            &cdi_id,
+            csr.info.subject.clone(),
+            csr.info.public_key,
+            certificate_buf,
+        )
+    }
+
+    fn from_current_cdi<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
+        current_cdi: &CompoundDeviceIdentifier<N, D, H>,
+        serial_number_bytes: &[u8],
+        subject: RdnSequence,
+        subject_public_key_info: SubjectPublicKeyInfo,
+        certificate_buf: &'a mut [u8],
+    ) -> Result<&'a [u8]> {
+        let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
+        hex::encode_to_slice(&current_cdi.id()?, &mut current_cdi_id)
+            .map_err(Error::InvalidCdiId)?;
+        let serial_number = UIntRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
+
+        // Issuer contains one ATV for one RDN: `SN=<Current CDI_ID>`
+        let issuer = x509_serial_number(&current_cdi_id)?;
 
         let validity = Validity {
             not_before: Time::past().map_err(Error::InvalidDer)?,
@@ -262,12 +308,6 @@ impl<'a> Certificate<'a> {
             .add(auth_key_id_extension)
             .map_err(Error::InvalidDer)?;
 
-        let subject_public_key_info = SubjectPublicKeyInfo {
-            algorithm: ed25519::pkcs8::ALGORITHM_ID,
-            subject_public_key: current_cdi.key_pair().public.as_bytes(),
-        };
-
-        // We copy the public key information and subject from the CSR
         let tbs_certificate = TbsCertificate {
             version: Version::V3,
             serial_number,
@@ -281,7 +321,8 @@ impl<'a> Certificate<'a> {
             extensions: Some(extensions),
         };
 
-        // We can now sign the TBS and generate the actual certificate
+        // We can now sign the TBS with the current CDI private key
+        // and generate the actual certificate.
         let mut tbs_bytes_buffer = [0u8; MAX_CERT_SIZE];
         let tbs_bytes = tbs_certificate
             .encode_to_slice(&mut tbs_bytes_buffer)

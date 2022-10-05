@@ -7,8 +7,9 @@ use der::asn1::BitStringRef;
 use der::{Decode, Enumerated, Sequence};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 
+use crate::cdi::CDI_ID_LEN;
 use crate::x509::{attr::Attributes, name::Name, verify::verifier_from_algorithm};
-use crate::Result;
+use crate::{Error, Result};
 
 /// Version identifier for certification request information.
 ///
@@ -92,5 +93,15 @@ impl<'a> CertReq<'a> {
     /// Verifies a CSR signature
     pub fn verify(&self) -> Result<()> {
         verifier_from_algorithm(self.algorithm)?.verify_csr(self)
+    }
+
+    /// Generates a CDI ID from a CSR public key
+    pub fn cdi_id<D: digest::Digest, H: hkdf::HmacImpl<D>>(&self, cdi_id: &mut [u8]) -> Result<()> {
+        let mut cdi_id_bytes = [0u8; CDI_ID_LEN];
+        crate::kdf::derive_cdi_id::<D, H>(
+            self.info.public_key.subject_public_key,
+            &mut cdi_id_bytes,
+        )?;
+        hex::encode_to_slice(cdi_id_bytes, cdi_id).map_err(Error::InvalidCdiId)
     }
 }
