@@ -5,7 +5,7 @@
 
 use const_oid::AssociatedOid;
 use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UIntRef, Utf8StringRef};
-use der::{AnyRef, Encode};
+use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
 use ed25519_dalek::Signer;
 use generic_array::ArrayLength;
@@ -194,10 +194,12 @@ impl<'a> Certificate<'a> {
     ///
     /// @current_cdi: The current layer CDI.
     /// @next_cdi: The next layer CDI.
+    /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
     pub fn from_layer<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         next_cdi: &CompoundDeviceIdentifier<N, D, H>,
+        extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
         // The serial number is the next layer CDI ID
@@ -217,6 +219,7 @@ impl<'a> Certificate<'a> {
             &next_cdi_id,
             subject,
             subject_public_key_info,
+            extns,
             certificate_buf,
         )
     }
@@ -227,10 +230,12 @@ impl<'a> Certificate<'a> {
     ///
     /// @current_cdi: The current layer CDI.
     /// @csr: The certificate signing request.
+    /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
     pub fn from_csr<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         csr: &CertReq<'a>,
+        extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
         // The serial number is derived from the CSR public key.
@@ -242,6 +247,7 @@ impl<'a> Certificate<'a> {
             &cdi_id,
             csr.info.subject.clone(),
             csr.info.public_key,
+            extns,
             certificate_buf,
         )
     }
@@ -251,6 +257,7 @@ impl<'a> Certificate<'a> {
         serial_number_bytes: &[u8],
         subject: RdnSequence,
         subject_public_key_info: SubjectPublicKeyInfo,
+        extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
         let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
@@ -307,6 +314,15 @@ impl<'a> Certificate<'a> {
         extensions
             .add(auth_key_id_extension)
             .map_err(Error::InvalidDer)?;
+
+        // Add all additional extensions.
+        if let Some(extns) = extns {
+            for extn in extns.iter() {
+                extensions
+                    .add(Extension::from_der(extn).map_err(Error::InvalidDer)?)
+                    .map_err(Error::InvalidDer)?;
+            }
+        }
 
         let tbs_certificate = TbsCertificate {
             version: Version::V3,
