@@ -261,7 +261,7 @@ impl<'a> Certificate<'a> {
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
         let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
-        hex::encode_to_slice(&current_cdi.id()?, &mut current_cdi_id)
+        hex::encode_to_slice(current_cdi.id()?, &mut current_cdi_id)
             .map_err(Error::InvalidCdiId)?;
         let serial_number = UIntRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
 
