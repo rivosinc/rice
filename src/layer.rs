@@ -4,7 +4,10 @@
 
 use crate::{
     cdi::{CdiType, CompoundDeviceIdentifier},
-    x509::certificate::{Certificate, MAX_CERT_SIZE},
+    x509::{
+        certificate::{Certificate, MAX_CERT_SIZE},
+        request::CertReq,
+    },
     Error, Result,
 };
 
@@ -20,7 +23,6 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 pub struct Layer<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
     cdi: CompoundDeviceIdentifier<N, D, H>,
     next_cdi: RwLock<Option<CompoundDeviceIdentifier<N, D, H>>>,
-    next_certificate: RwLock<ArrayVec<u8, MAX_CERT_SIZE>>,
 
     _pd_d: PhantomData<D>,
     _pd_h: PhantomData<H>,
@@ -30,7 +32,6 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.next_cdi.write().zeroize();
-        self.next_certificate.write().zeroize();
         self._pd_d.zeroize();
         self._pd_h.zeroize();
     }
@@ -48,7 +49,6 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
         Ok(Layer {
             cdi: CompoundDeviceIdentifier::new(current_cdi, cdi_type)?,
             next_cdi: RwLock::new(None),
-            next_certificate: RwLock::new(ArrayVec::<u8, MAX_CERT_SIZE>::new()),
             _pd_d: PhantomData,
             _pd_h: PhantomData,
         })
@@ -66,21 +66,34 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
             .write()
             .replace(self.cdi.next(info, next_tci)?);
 
-        let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_layer(
-            &self.cdi,
-            self.next_cdi.read().as_ref().ok_or(Error::MissingNextCdi)?,
-            &mut cert_der_bytes,
-        )?;
-
-        *self.next_certificate.write() =
-            ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)?;
-
         Ok(())
     }
 
     /// The certificate DER for the next CDI.
-    pub fn next_certificate(&self) -> ArrayVec<u8, MAX_CERT_SIZE> {
-        self.next_certificate.read().clone()
+    pub fn next_certificate<'a>(
+        &self,
+        extns: Option<&'a [&'a [u8]]>,
+    ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
+        let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
+        let cert_der = Certificate::from_layer(
+            &self.cdi,
+            self.next_cdi.read().as_ref().ok_or(Error::MissingNextCdi)?,
+            extns,
+            &mut cert_der_bytes,
+        )?;
+
+        ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
+    }
+
+    /// The certificate DER for the next CDI.
+    pub fn csr_certificate<'a>(
+        &self,
+        csr: &'a CertReq<'a>,
+        extns: Option<&'a [&'a [u8]]>,
+    ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
+        let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
+        let cert_der = Certificate::from_csr(&self.cdi, csr, extns, &mut cert_der_bytes)?;
+
+        ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
     }
 }
