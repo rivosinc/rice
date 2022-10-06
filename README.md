@@ -46,7 +46,7 @@ Issuer = `CDI_0_Public`
 
 ### Output
 
-`CDI_1` and `CDI_1_Certificate`
+`CDI_1` and `CDI_1_Certificat`
 
 ## References
 
