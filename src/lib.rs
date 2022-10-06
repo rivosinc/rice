@@ -11,6 +11,9 @@ pub enum Error {
     /// Generated certificate is too large
     CertificateTooLarge(arrayvec::CapacityError),
 
+    /// Failed to expand the CDI
+    InvalidCdiExpansion(hkdf::InvalidLength),
+
     /// Invalid CDI ID
     InvalidCdiId(hex::FromHexError),
 
@@ -60,8 +63,8 @@ pub mod cdi;
 /// The DICE layer module
 pub mod layer;
 
-// Key Derivation Function module
-mod kdf;
+/// Key Derivation Function module
+pub mod kdf;
 
 /// X.509 certificate module
 pub mod x509;

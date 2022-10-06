@@ -32,6 +32,14 @@ pub(crate) fn derive_cdi_id<D: Digest, H: HmacImpl<D>>(
     kdf::<D, H>(public_key, &ID_SALT, &[b"CDI_ID"], cdi_id)
 }
 
+/// Extract a CDI from antoher one.
+/// This is mostly useful for expanding secrets into static lenghth CDIs.
+pub fn extract_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8], new_cdi: &mut [u8]) -> Result<()> {
+    let kdf = Hkdf::<D, H>::new(None, cdi);
+    kdf.expand(&[0u8; 0], new_cdi)
+        .map_err(Error::InvalidCdiExpansion)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::cdi::ID_SALT;
