@@ -3,22 +3,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use const_oid::{AssociatedOid, ObjectIdentifier};
-use der::asn1::{OctetStringRef, SequenceOf, UIntRef, Utf8StringRef};
 use der::Sequence;
+use der::{
+    asn1::{OctetStringRef, SequenceOf, UIntRef, Utf8StringRef},
+    Encode,
+};
 use digest::{Digest, OutputSizeUser};
 use flagset::{flags, FlagSet};
 use generic_array::GenericArray;
 
-use crate::{x509::MAX_TCBINFO_FWID, Error, Result};
+use crate::{
+    x509::{extensions::Extension, MAX_TCBINFO_FWID},
+    Error, Result,
+};
 
 /// The DiceTcbInfo OID.
 /// tcg OBJECT IDENTIFIER ::= {2 23 133}
 /// tcg-dice OBJECT IDENTIFIER ::= { tcg platformClass(5) 4 }
 pub const TCG_DICE_TCB_INFO: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.23.133.5.4");
 
-//pub const MAX_HASH_OUTPUT_LEN: usize = 64;
-//pub const MAX_FWID_LEN: usize = ObjectIdentifier::MAX_SIZE + MAX_HASH_OUTPUT_LEN;
-//pub const MAX_TCB_INFO_HEADER_LEN: usize = 128;
+const MAX_HASH_OUTPUT_LEN: usize = 64;
+const MAX_FWID_LEN: usize = ObjectIdentifier::MAX_SIZE + MAX_HASH_OUTPUT_LEN;
+const MAX_TCB_INFO_HEADER_LEN: usize = 128;
+const MAX_MSMT_REGISTERS: usize = 16;
+const MAX_TCB_INFO_EXTN_LEN: usize = (MAX_MSMT_REGISTERS * MAX_FWID_LEN) + MAX_TCB_INFO_HEADER_LEN;
 
 flags! {
     /// A list of flags that enumerate potentially simultaneous operational
@@ -131,6 +139,23 @@ impl<'a> DiceTcbInfo<'a> {
         }
 
         Ok(self)
+    }
+
+    /// Convert a TCB info into an actual extension.
+    pub fn to_extension(&self, extn_buf: &'a mut [u8]) -> Result<&'a [u8]> {
+        let mut tcb_info_bytes = [0u8; MAX_TCB_INFO_EXTN_LEN];
+        let extn_value = self
+            .encode_to_slice(&mut tcb_info_bytes)
+            .map_err(Error::InvalidTcbInfoExtensionDer)?;
+
+        let extn = Extension {
+            extn_id: TCG_DICE_TCB_INFO,
+            critical: true,
+            extn_value,
+        };
+
+        extn.encode_to_slice(extn_buf)
+            .map_err(Error::InvalidExtensionDer)
     }
 }
 
