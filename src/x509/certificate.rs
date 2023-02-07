@@ -260,13 +260,43 @@ impl<'a> Certificate<'a> {
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
-        let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
-        hex::encode_to_slice(current_cdi.id()?, &mut current_cdi_id)
-            .map_err(Error::InvalidCdiId)?;
+        Self::from_raw_parts(
+            current_cdi.id()?,
+            serial_number_bytes,
+            subject,
+            subject_public_key_info,
+            extns,
+            current_cdi.key_pair(),
+            certificate_buf,
+        )
+    }
+
+    /// Build a certificate from raw parts.
+    ///
+    /// # Parameters
+    ///
+    /// @cdi_id: The CDI ID.
+    /// @serial_number_bytes: Certificate Serial Number.
+    /// @subject: Certificate Subject.
+    /// @subject_public_key_info: Subject Pulbic Key Info.
+    /// @extns: An optional slice of x.509 DER-formatted extensions slices.
+    /// @signer: A `Signer` trait for signing the certificate.
+    /// @certificate_buf: Buffer to hold the certificate DER.
+    pub fn from_raw_parts<S: Signer<ed25519_dalek::Signature>>(
+        cdi_id: [u8; CDI_ID_LEN],
+        serial_number_bytes: &[u8],
+        subject: RdnSequence,
+        subject_public_key_info: SubjectPublicKeyInfo,
+        extns: Option<&'a [&'a [u8]]>,
+        signer: &S,
+        certificate_buf: &'a mut [u8],
+    ) -> Result<&'a [u8]> {
+        let mut hex_cdi_id = [0u8; 2 * CDI_ID_LEN];
+        hex::encode_to_slice(cdi_id, &mut hex_cdi_id).map_err(Error::InvalidCdiId)?;
         let serial_number = UIntRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
 
         // Issuer contains one ATV for one RDN: `SN=<Current CDI_ID>`
-        let issuer = x509_serial_number(&current_cdi_id)?;
+        let issuer = x509_serial_number(&hex_cdi_id)?;
 
         let validity = Validity {
             not_before: Time::past().map_err(Error::InvalidDer)?,
@@ -304,7 +334,7 @@ impl<'a> Certificate<'a> {
         // Add the authorityKeyIdentifier extension.
         // We only set the keyIndentifier field to the current CDI_ID.
         let auth_key_id = AuthorityKeyIdentifier {
-            key_identifier: Some(OctetStringRef::new(&current_cdi_id).map_err(Error::InvalidDer)?),
+            key_identifier: Some(OctetStringRef::new(&hex_cdi_id).map_err(Error::InvalidDer)?),
             authority_cert_issuer: None,
             authority_cert_serial_number: None,
         };
@@ -343,7 +373,7 @@ impl<'a> Certificate<'a> {
         let tbs_bytes = tbs_certificate
             .encode_to_slice(&mut tbs_bytes_buffer)
             .map_err(Error::InvalidDer)?;
-        let signature = current_cdi.key_pair().sign(tbs_bytes).to_bytes();
+        let signature = signer.sign(tbs_bytes).to_bytes();
 
         let certificate = Certificate {
             tbs_certificate,
