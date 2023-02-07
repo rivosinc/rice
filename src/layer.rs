@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    cdi::{CdiType, CompoundDeviceIdentifier},
+    cdi::{CdiType, CompoundDeviceIdentifier, CDI_ID_LEN},
     x509::{
         certificate::{Certificate, MAX_CERT_SIZE},
         request::CertReq,
@@ -95,5 +95,10 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
         let cert_der = Certificate::from_csr(&self.cdi, csr, extns, &mut cert_der_bytes)?;
 
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
+    }
+
+    /// Returns the current layer CDI ID.
+    pub fn cdi_id(&self) -> Result<[u8; CDI_ID_LEN]> {
+        self.cdi.id()
     }
 }
