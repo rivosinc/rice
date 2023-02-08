@@ -2,7 +2,10 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{kdf::kdf, Error, Result};
+use crate::{
+    kdf::{derive_cdi_id, kdf},
+    Error, Result,
+};
 use core::marker::PhantomData;
 use digest::Digest;
 use ed25519_dalek::{Keypair, SecretKey, SECRET_KEY_LENGTH};
@@ -142,12 +145,7 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, 
     /// CDI Identifier based on the CDI public key.
     pub fn id(&self) -> Result<[u8; CDI_ID_LEN]> {
         let mut cdi_id = [0u8; CDI_ID_LEN];
-        kdf::<D, H>(
-            self.key_pair.public.as_bytes(),
-            &ID_SALT,
-            &[b"CDI_ID"],
-            &mut cdi_id,
-        )?;
+        derive_cdi_id::<D, H>(self.key_pair.public.as_bytes(), &mut cdi_id)?;
 
         Ok(cdi_id)
     }
