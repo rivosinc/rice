@@ -66,8 +66,8 @@ impl fmt::Display for RdnSequence<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, rdn) in self.0.iter().enumerate() {
             match i {
-                0 => write!(f, "{}", rdn)?,
-                _ => write!(f, ",{}", rdn)?,
+                0 => write!(f, "{rdn}")?,
+                _ => write!(f, ",{rdn}")?,
             }
         }
 
@@ -148,8 +148,8 @@ impl fmt::Display for RelativeDistinguishedName<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, atv) in self.0.iter().enumerate() {
             match i {
-                0 => write!(f, "{}", atv)?,
-                _ => write!(f, "+{}", atv)?,
+                0 => write!(f, "{atv}")?,
+                _ => write!(f, "+{atv}")?,
             }
         }
 

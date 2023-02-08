@@ -248,14 +248,14 @@ impl fmt::Display for AttributeTypeAndValue<'_> {
         };
 
         if let (Some(key), Some(val)) = (DB.by_oid(&self.oid), val) {
-            write!(f, "{}=", key)?;
+            write!(f, "{key}=")?;
 
             let mut iter = val.char_indices().peekable();
             while let Some((i, c)) = iter.next() {
                 match c {
                     '#' if i == 0 => write!(f, "\\#")?,
                     ' ' if i == 0 || iter.peek().is_none() => write!(f, "\\ ")?,
-                    '"' | '+' | ',' | ';' | '<' | '>' | '\\' => write!(f, "\\{}", c)?,
+                    '"' | '+' | ',' | ';' | '<' | '>' | '\\' => write!(f, "\\{c}")?,
                     '\x00'..='\x1f' | '\x7f' => write!(f, "\\{:02x}", c as u8)?,
                     _ => f.write_char(c)?,
                 }
