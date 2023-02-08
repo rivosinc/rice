@@ -9,7 +9,6 @@ use crate::{
 use core::marker::PhantomData;
 use digest::Digest;
 use ed25519_dalek::{Keypair, SecretKey, SECRET_KEY_LENGTH};
-use generic_array::{ArrayLength, GenericArray};
 use hkdf::HmacImpl;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -65,8 +64,8 @@ fn key_pair_from_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8]) -> Result<Keypair> {
 }
 
 /// A DICE Compound Device Identifier (CDI)
-pub struct CompoundDeviceIdentifier<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
-    cdi: GenericArray<u8, N>,
+pub struct CompoundDeviceIdentifier<const N: usize, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
+    cdi: [u8; N],
     cdi_type: CdiType,
     #[allow(dead_code)]
     key_pair: Keypair,
@@ -75,7 +74,7 @@ pub struct CompoundDeviceIdentifier<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D
     _pd_h: PhantomData<H>,
 }
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for CompoundDeviceIdentifier<N, D, H> {
+impl<const N: usize, D: Digest, H: HmacImpl<D>> Zeroize for CompoundDeviceIdentifier<N, D, H> {
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.key_pair.to_bytes().zeroize();
@@ -84,19 +83,19 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for CompoundDeviceId
     }
 }
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop
+impl<const N: usize, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop
     for CompoundDeviceIdentifier<N, D, H>
 {
 }
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, D, H> {
+impl<const N: usize, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, D, H> {
     /// DICE CDI constructor.
     ///
     /// # Parameters
     /// @current_cdi: The CDI buffer.
     /// @cdi_type: The type of CDI
     pub fn new(cdi_bytes: &[u8], cdi_type: CdiType) -> Result<Self> {
-        let cdi = GenericArray::clone_from_slice(cdi_bytes);
+        let cdi = cdi_bytes.try_into().map_err(Error::InvalidCdi)?;
         let key_pair = key_pair_from_cdi::<D, H>(cdi_bytes)?;
 
         Ok(CompoundDeviceIdentifier {
@@ -116,7 +115,7 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier<N, 
     /// @info is the HKDF expansion additional context information.
     /// @tci is typically the next layer TCI. If None is passed, the ID_SALT salt is used.
     pub fn next(&self, info: Option<&[u8]>, next_tci: Option<&[u8]>) -> Result<Self> {
-        let mut next_cdi: GenericArray<u8, N> = GenericArray::default();
+        let mut next_cdi: [u8; N] = [0; N];
         kdf::<D, H>(
             self.cdi.as_slice(),
             next_tci.unwrap_or(&ID_SALT),

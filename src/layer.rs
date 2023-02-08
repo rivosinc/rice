@@ -14,13 +14,12 @@ use crate::{
 use arrayvec::ArrayVec;
 use core::marker::PhantomData;
 use digest::Digest;
-use generic_array::ArrayLength;
 use hkdf::HmacImpl;
 use spin::RwLock;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A TCG DICE layer.
-pub struct Layer<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
+pub struct Layer<const N: usize, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
     cdi: CompoundDeviceIdentifier<N, D, H>,
     next_cdi: RwLock<Option<CompoundDeviceIdentifier<N, D, H>>>,
 
@@ -28,7 +27,7 @@ pub struct Layer<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> 
     _pd_h: PhantomData<H>,
 }
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
+impl<const N: usize, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.next_cdi.write().zeroize();
@@ -37,9 +36,9 @@ impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
     }
 }
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for Layer<N, D, H> {}
+impl<const N: usize, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for Layer<N, D, H> {}
 
-impl<N: ArrayLength<u8>, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
+impl<const N: usize, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
     /// DICE layer constructor.
     ///
     /// # Parameters
