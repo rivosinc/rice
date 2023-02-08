@@ -11,6 +11,9 @@ pub enum Error {
     /// Generated certificate is too large
     CertificateTooLarge(arrayvec::CapacityError),
 
+    /// Invalid CDI
+    InvalidCdi(core::array::TryFromSliceError),
+
     /// Failed to expand the CDI
     InvalidCdiExpansion(hkdf::InvalidLength),
 

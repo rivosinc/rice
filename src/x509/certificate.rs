@@ -8,7 +8,6 @@ use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UIntRef, Utf8St
 use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
 use ed25519_dalek::Signer;
-use generic_array::ArrayLength;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 
 use crate::{
@@ -196,7 +195,7 @@ impl<'a> Certificate<'a> {
     /// @next_cdi: The next layer CDI.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_layer<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
+    pub fn from_layer<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         next_cdi: &CompoundDeviceIdentifier<N, D, H>,
         extns: Option<&'a [&'a [u8]]>,
@@ -232,7 +231,7 @@ impl<'a> Certificate<'a> {
     /// @csr: The certificate signing request.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_csr<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
+    pub fn from_csr<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         csr: &CertReq<'a>,
         extns: Option<&'a [&'a [u8]]>,
@@ -252,7 +251,7 @@ impl<'a> Certificate<'a> {
         )
     }
 
-    fn from_current_cdi<N: ArrayLength<u8>, D: digest::Digest, H: hkdf::HmacImpl<D>>(
+    fn from_current_cdi<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
         current_cdi: &CompoundDeviceIdentifier<N, D, H>,
         serial_number_bytes: &[u8],
         subject: RdnSequence,
