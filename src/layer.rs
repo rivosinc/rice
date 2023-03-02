@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    cdi::{CdiType, CompoundDeviceIdentifier, CDI_ID_LEN},
+    cdi::CompoundDeviceIdentifier,
     x509::{
         certificate::{Certificate, MAX_CERT_SIZE},
         request::CertReq,
@@ -19,15 +19,14 @@ use spin::RwLock;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A TCG DICE layer.
-pub struct Layer<const N: usize, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
-    cdi: CompoundDeviceIdentifier<N, D, H>,
-    next_cdi: RwLock<Option<CompoundDeviceIdentifier<N, D, H>>>,
-
+pub struct Layer<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
+    cdi: C,
+    next_cdi: RwLock<Option<C>>,
     _pd_d: PhantomData<D>,
     _pd_h: PhantomData<H>,
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
+impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Zeroize for Layer<C, D, H> {
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.next_cdi.write().zeroize();
@@ -36,18 +35,18 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>> Zeroize for Layer<N, D, H> {
     }
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for Layer<N, D, H> {}
+impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for Layer<C, D, H> {}
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
+impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Layer<C, D, H> {
     /// DICE layer constructor.
     ///
     /// # Parameters
-    /// @current_cdi: The current layer CDI.
-    /// @cdi_type: The type of CDI
-    pub fn new(current_cdi: &[u8], cdi_type: CdiType) -> Result<Self> {
+    /// @cdi: The current layer CDI.
+    /// TODO
+    pub fn new(cdi: C, next_cdi: Option<C>) -> Result<Self> {
         Ok(Layer {
-            cdi: CompoundDeviceIdentifier::new(current_cdi, cdi_type)?,
-            next_cdi: RwLock::new(None),
+            cdi,
+            next_cdi: RwLock::new(next_cdi),
             _pd_d: PhantomData,
             _pd_h: PhantomData,
         })
@@ -91,13 +90,9 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>> Layer<N, D, H> {
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_csr(&self.cdi, csr, extns, &mut cert_der_bytes)?;
+        let cert_der =
+            Certificate::from_csr::<C, D, H>(&self.cdi, csr, extns, &mut cert_der_bytes)?;
 
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
-    }
-
-    /// Returns the current layer CDI ID.
-    pub fn cdi_id(&self) -> Result<[u8; CDI_ID_LEN]> {
-        self.cdi.id()
     }
 }
