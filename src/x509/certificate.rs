@@ -7,7 +7,8 @@ use const_oid::AssociatedOid;
 use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UIntRef, Utf8StringRef};
 use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
-use ed25519_dalek::Signer;
+use digest::Digest;
+use hkdf::HmacImpl;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 
 use crate::{
@@ -195,9 +196,9 @@ impl<'a> Certificate<'a> {
     /// @next_cdi: The next layer CDI.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_layer<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
-        current_cdi: &CompoundDeviceIdentifier<N, D, H>,
-        next_cdi: &CompoundDeviceIdentifier<N, D, H>,
+    pub fn from_layer<C: CompoundDeviceIdentifier>(
+        current_cdi: &C,
+        next_cdi: &C,
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
@@ -210,7 +211,7 @@ impl<'a> Certificate<'a> {
         // The subject public key is the next CDI derived public key.
         let subject_public_key_info = SubjectPublicKeyInfo {
             algorithm: ed25519::pkcs8::ALGORITHM_ID,
-            subject_public_key: next_cdi.key_pair().public.as_bytes(),
+            subject_public_key: &next_cdi.public_key(),
         };
 
         Certificate::from_current_cdi(
@@ -231,8 +232,8 @@ impl<'a> Certificate<'a> {
     /// @csr: The certificate signing request.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_csr<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
-        current_cdi: &CompoundDeviceIdentifier<N, D, H>,
+    pub fn from_csr<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>>(
+        current_cdi: &C,
         csr: &CertReq<'a>,
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
@@ -251,51 +252,21 @@ impl<'a> Certificate<'a> {
         )
     }
 
-    fn from_current_cdi<const N: usize, D: digest::Digest, H: hkdf::HmacImpl<D>>(
-        current_cdi: &CompoundDeviceIdentifier<N, D, H>,
+    fn from_current_cdi<C: CompoundDeviceIdentifier>(
+        current_cdi: &C,
         serial_number_bytes: &[u8],
         subject: RdnSequence,
         subject_public_key_info: SubjectPublicKeyInfo,
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
     ) -> Result<&'a [u8]> {
-        Self::from_raw_parts(
-            current_cdi.id()?,
-            serial_number_bytes,
-            subject,
-            subject_public_key_info,
-            extns,
-            current_cdi.key_pair(),
-            certificate_buf,
-        )
-    }
-
-    /// Build a certificate from raw parts.
-    ///
-    /// # Parameters
-    ///
-    /// @cdi_id: The CDI ID.
-    /// @serial_number_bytes: Certificate Serial Number.
-    /// @subject: Certificate Subject.
-    /// @subject_public_key_info: Subject Pulbic Key Info.
-    /// @extns: An optional slice of x.509 DER-formatted extensions slices.
-    /// @signer: A `Signer` trait for signing the certificate.
-    /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_raw_parts<S: Signer<ed25519_dalek::Signature>>(
-        cdi_id: [u8; CDI_ID_LEN],
-        serial_number_bytes: &[u8],
-        subject: RdnSequence,
-        subject_public_key_info: SubjectPublicKeyInfo,
-        extns: Option<&'a [&'a [u8]]>,
-        signer: &S,
-        certificate_buf: &'a mut [u8],
-    ) -> Result<&'a [u8]> {
-        let mut hex_cdi_id = [0u8; 2 * CDI_ID_LEN];
-        hex::encode_to_slice(cdi_id, &mut hex_cdi_id).map_err(Error::InvalidCdiId)?;
+        let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
+        hex::encode_to_slice(current_cdi.id()?, &mut current_cdi_id)
+            .map_err(Error::InvalidCdiId)?;
         let serial_number = UIntRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
 
         // Issuer contains one ATV for one RDN: `SN=<Current CDI_ID>`
-        let issuer = x509_serial_number(&hex_cdi_id)?;
+        let issuer = x509_serial_number(&current_cdi_id)?;
 
         let validity = Validity {
             not_before: Time::past().map_err(Error::InvalidDer)?,
@@ -333,7 +304,7 @@ impl<'a> Certificate<'a> {
         // Add the authorityKeyIdentifier extension.
         // We only set the keyIndentifier field to the current CDI_ID.
         let auth_key_id = AuthorityKeyIdentifier {
-            key_identifier: Some(OctetStringRef::new(&hex_cdi_id).map_err(Error::InvalidDer)?),
+            key_identifier: Some(OctetStringRef::new(&current_cdi_id).map_err(Error::InvalidDer)?),
             authority_cert_issuer: None,
             authority_cert_serial_number: None,
         };
@@ -372,7 +343,7 @@ impl<'a> Certificate<'a> {
         let tbs_bytes = tbs_certificate
             .encode_to_slice(&mut tbs_bytes_buffer)
             .map_err(Error::InvalidDer)?;
-        let signature = signer.sign(tbs_bytes).to_bytes();
+        let signature = current_cdi.sign(tbs_bytes);
 
         let certificate = Certificate {
             tbs_certificate,

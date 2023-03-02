@@ -5,7 +5,7 @@
 use digest::Digest;
 use hkdf::{Hkdf, HmacImpl};
 
-use crate::{cdi::ID_SALT, Error, Result};
+use crate::{local_cdi::ID_SALT, Error, Result};
 
 // Generic HKDF-based derivation function
 pub(crate) fn kdf<D: Digest, H: HmacImpl<D>>(
@@ -42,8 +42,8 @@ pub fn extract_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8], new_cdi: &mut [u8]) ->
 
 #[cfg(test)]
 mod tests {
-    use crate::cdi::ID_SALT;
     use crate::kdf::kdf;
+    use crate::local_cdi::ID_SALT;
 
     type Hmac384 = hmac::Hmac<sha2::Sha384>;
 

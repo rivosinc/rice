@@ -60,7 +60,7 @@ pub enum Error {
 /// Custom DICE result.
 pub type Result<T> = core::result::Result<T, Error>;
 
-/// The DICE Compound Device Identifier (CDI) module
+/// The DICE Compound Device Identifier (CDI) interface.
 pub mod cdi;
 
 /// The DICE layer module
@@ -71,3 +71,6 @@ pub mod kdf;
 
 /// X.509 certificate module
 pub mod x509;
+
+/// Local CDI implementation module.
+pub mod local_cdi;
