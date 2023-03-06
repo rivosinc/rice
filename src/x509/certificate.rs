@@ -9,6 +9,7 @@ use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
 use digest::Digest;
 use hkdf::HmacImpl;
+use signature::Signature;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 
 use crate::{
@@ -196,7 +197,7 @@ impl<'a> Certificate<'a> {
     /// @next_cdi: The next layer CDI.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_layer<C: CompoundDeviceIdentifier>(
+    pub fn from_layer<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>>(
         current_cdi: &C,
         next_cdi: &C,
         extns: Option<&'a [&'a [u8]]>,
@@ -232,7 +233,13 @@ impl<'a> Certificate<'a> {
     /// @csr: The certificate signing request.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_csr<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>>(
+    pub fn from_csr<
+        const N: usize,
+        S: Signature,
+        C: CompoundDeviceIdentifier<N, S>,
+        D: Digest,
+        H: HmacImpl<D>,
+    >(
         current_cdi: &C,
         csr: &CertReq<'a>,
         extns: Option<&'a [&'a [u8]]>,
@@ -252,7 +259,7 @@ impl<'a> Certificate<'a> {
         )
     }
 
-    fn from_current_cdi<C: CompoundDeviceIdentifier>(
+    fn from_current_cdi<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>>(
         current_cdi: &C,
         serial_number_bytes: &[u8],
         subject: RdnSequence,
@@ -344,10 +351,11 @@ impl<'a> Certificate<'a> {
             .encode_to_slice(&mut tbs_bytes_buffer)
             .map_err(Error::InvalidDer)?;
         let signature = current_cdi.sign(tbs_bytes);
+        let signature_bytes = signature.as_bytes();
 
         let certificate = Certificate {
             tbs_certificate,
-            signature: BitStringRef::from_bytes(&signature).map_err(Error::InvalidDer)?,
+            signature: BitStringRef::from_bytes(signature_bytes).map_err(Error::InvalidDer)?,
             signature_algorithm: ed25519::pkcs8::ALGORITHM_ID,
         };
 

@@ -9,7 +9,7 @@ use crate::{
 };
 use core::marker::PhantomData;
 use digest::Digest;
-use ed25519_dalek::{Keypair, SecretKey, Signer, SECRET_KEY_LENGTH};
+use ed25519_dalek::{Keypair, SecretKey, Signature, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 use hkdf::HmacImpl;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -82,7 +82,15 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>> LocalCdi<N, D, H> {
     }
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier for LocalCdi<N, D, H> {
+impl<const N: usize, D: Digest, H: HmacImpl<D>> signature::Signer<Signature> for LocalCdi<N, D, H> {
+    fn try_sign(&self, msg: &[u8]) -> core::result::Result<Signature, signature::Error> {
+        self.key_pair.try_sign(msg)
+    }
+}
+
+impl<const N: usize, D: Digest, H: HmacImpl<D>>
+    CompoundDeviceIdentifier<PUBLIC_KEY_LENGTH, Signature> for LocalCdi<N, D, H>
+{
     /// Derive the next layer CDI and keypair for the current CDI, from a TCI
     /// and some additional context information.
     ///
@@ -112,11 +120,8 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>> CompoundDeviceIdentifier for Loc
         })
     }
 
-    fn sign(&self, msg: &[u8]) -> [u8; 64] {
-        self.key_pair.sign(msg).to_bytes()
-    }
-
-    fn public_key(&self) -> [u8; 32] {
+    /// Public key for the current CDI.
+    fn public_key(&self) -> [u8; PUBLIC_KEY_LENGTH] {
         self.key_pair.public.to_bytes()
     }
 
