@@ -15,25 +15,32 @@ use arrayvec::ArrayVec;
 use core::marker::PhantomData;
 use digest::Digest;
 use hkdf::HmacImpl;
+use signature::Signature;
 use spin::{RwLock, RwLockReadGuard};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A structure representing the basic functionalities of a TCG DICE layer without Certificate handling.
-pub struct LayerBase<Cdi: CompoundDeviceIdentifier> {
+pub struct LayerBase<const N: usize, S: Signature, Cdi: CompoundDeviceIdentifier<N, S>> {
     cdi: Cdi,
     next_cdi: RwLock<Option<Cdi>>,
+    _pd_s: PhantomData<S>,
 }
 
-impl<C: CompoundDeviceIdentifier> Zeroize for LayerBase<C> {
+impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> Zeroize
+    for LayerBase<N, S, C>
+{
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.next_cdi.write().zeroize();
     }
 }
 
-impl<C: CompoundDeviceIdentifier> ZeroizeOnDrop for LayerBase<C> {}
+impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> ZeroizeOnDrop
+    for LayerBase<N, S, C>
+{
+}
 
-impl<C: CompoundDeviceIdentifier> LayerBase<C> {
+impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> LayerBase<N, S, C> {
     /// DICE layer constructor.
     ///
     /// # Parameters
@@ -42,6 +49,7 @@ impl<C: CompoundDeviceIdentifier> LayerBase<C> {
         LayerBase {
             cdi,
             next_cdi: RwLock::new(next_cdi),
+            _pd_s: PhantomData,
         }
     }
 
@@ -72,13 +80,26 @@ impl<C: CompoundDeviceIdentifier> LayerBase<C> {
 }
 
 /// A TCG DICE layer.
-pub struct Layer<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
-    base: LayerBase<C>,
+pub struct Layer<
+    const N: usize,
+    S: Signature,
+    C: CompoundDeviceIdentifier<N, S>,
+    D: Digest,
+    H: HmacImpl<D> = hmac::Hmac<D>,
+> {
+    base: LayerBase<N, S, C>,
     _pd_d: PhantomData<D>,
     _pd_h: PhantomData<H>,
 }
 
-impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Zeroize for Layer<C, D, H> {
+impl<
+        const N: usize,
+        S: Signature,
+        C: CompoundDeviceIdentifier<N, S>,
+        D: Digest,
+        H: HmacImpl<D>,
+    > Zeroize for Layer<N, S, C, D, H>
+{
     fn zeroize(&mut self) {
         self.base.zeroize();
         self._pd_d.zeroize();
@@ -86,9 +107,24 @@ impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Zeroize for Layer<C
     }
 }
 
-impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for Layer<C, D, H> {}
+impl<
+        const N: usize,
+        S: Signature,
+        C: CompoundDeviceIdentifier<N, S>,
+        D: Digest,
+        H: HmacImpl<D>,
+    > ZeroizeOnDrop for Layer<N, S, C, D, H>
+{
+}
 
-impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Layer<C, D, H> {
+impl<
+        const N: usize,
+        S: Signature,
+        C: CompoundDeviceIdentifier<N, S>,
+        D: Digest,
+        H: HmacImpl<D>,
+    > Layer<N, S, C, D, H>
+{
     /// DICE layer constructor.
     ///
     /// # Parameters
@@ -136,7 +172,7 @@ impl<C: CompoundDeviceIdentifier, D: Digest, H: HmacImpl<D>> Layer<C, D, H> {
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_csr::<C, D, H>(
+        let cert_der = Certificate::from_csr::<N, S, C, D, H>(
             self.base.current_cdi(),
             csr,
             extns,
