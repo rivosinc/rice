@@ -133,3 +133,25 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
         Ok(cdi_id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use signature::Signer;
+
+    const CDI_LENGTH: usize = 32;
+
+    #[test]
+    fn local_cdi() {
+        let cdi_bytes = [0u8; CDI_LENGTH];
+        let msg = [1u8; 4096];
+        let cdi =
+            LocalCdi::<CDI_LENGTH, sha2::Sha384>::new(&cdi_bytes, CdiType::Attestation).unwrap();
+
+        assert!(cdi.try_sign(&msg).is_ok());
+        assert_eq!(
+            cdi.sign(&msg).to_bytes().len(),
+            ed25519_dalek::SIGNATURE_LENGTH
+        );
+    }
+}
