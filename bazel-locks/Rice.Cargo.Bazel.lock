@@ -135,6 +135,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "sha2 0.10.6",
+ "signature",
  "spin",
  "spki",
  "zeroize",

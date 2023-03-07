@@ -48,6 +48,7 @@ def rice_dependencies():
             "hkdf": crate.spec(version = "0.12.3"),
             "hmac": crate.spec(version = "0.12.1"),
             "sha2": crate.spec(version = "0.10", default_features = False),
+            "signature": crate.spec(version = "1.6.4", default_features = False),
             "spin": crate.spec(
                 version = "*",
                 default_features = False,

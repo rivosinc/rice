@@ -18,6 +18,7 @@ rust_library(
         "@rice-index//:hkdf",
         "@rice-index//:hmac",
         "@rice-index//:sha2",
+        "@rice-index//:signature",
         "@rice-index//:spin",
         "@rice-index//:spki",
         "@rice-index//:zeroize",
