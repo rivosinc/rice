@@ -1,4 +1,6 @@
 // Copyright (c) 2021 The RustCrypto Project Developers
+//
+// SPDX-License-Identifier: Apache-2.0
 
 use der::asn1::{PrintableStringRef, Utf8StringRef};
 use der::Choice;
