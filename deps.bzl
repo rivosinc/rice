@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2023 Rivos Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 load("@rules_rust//crate_universe:defs.bzl", "crate", "crates_repository")
 
 # on changes to crate dependencies, run the following command from the

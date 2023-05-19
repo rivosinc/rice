@@ -1,4 +1,12 @@
+<!--
+SPDX-FileCopyrightText: 2023 Rivos Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # TCG DICE Rust crate
+
+[![REUSE status](https://api.reuse.software/badge/github.com/rivosinc/rice)](https://api.reuse.software/info/github.com/rivosinc/rice)
 
 a.k.a. `RICE`.
 
