@@ -4,7 +4,7 @@
 
 use der::Encode;
 use ed25519::pkcs8::{DecodePublicKey, PublicKeyBytes};
-use ed25519_dalek::{PublicKey, Signature, Verifier};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use spki::AlgorithmIdentifier;
 
 use crate::{
@@ -35,7 +35,7 @@ impl CertVerifier for Ed25519Verifier {
             .map_err(Error::InvalidDer)?;
         let pub_key_bytes =
             PublicKeyBytes::from_public_key_der(pub_key_der).map_err(Error::InvalidPublicKeyDer)?;
-        let pub_key = PublicKey::from_bytes(&pub_key_bytes.to_bytes())
+        let pub_key = VerifyingKey::from_bytes(&pub_key_bytes.to_bytes())
             .map_err(|_| Error::InvalidPublicKey)?;
 
         let mut csr_info_bytes = [0u8; MAX_CSR_LEN];
@@ -53,7 +53,7 @@ impl CertVerifier for Ed25519Verifier {
     }
 }
 
-pub fn verifier_from_algorithm(alg: AlgorithmIdentifier) -> Result<&'static dyn CertVerifier> {
+pub fn verifier_from_algorithm(alg: AlgorithmIdentifier<()>) -> Result<&'static dyn CertVerifier> {
     match alg.oid {
         ed25519::pkcs8::ALGORITHM_OID => Ok(&ED25519_V),
 

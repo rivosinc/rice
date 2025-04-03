@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 use core::fmt::{self, Write};
 
 use const_oid::db::DB;
-use der::asn1::{AnyRef, ObjectIdentifier, SetOf};
+use der::asn1::{AnyRef, Ia5StringRef, ObjectIdentifier, PrintableStringRef, SetOf, Utf8StringRef};
 use der::{Decode, Encode, Error, ErrorKind, Length, Sequence, Tag, Tagged, ValueOrd};
 
 use crate::x509::{MAX_CSR_ATV, MAX_CSR_ATV_LEN, MAX_CSR_ATV_VALUE, MAX_CSR_ATV_VALUE_LEN};
@@ -241,9 +241,11 @@ impl AttributeTypeAndValue<'_> {
 impl fmt::Display for AttributeTypeAndValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let val = match self.value.tag() {
-            Tag::PrintableString => self.value.printable_string().ok().map(|s| s.as_str()),
-            Tag::Utf8String => self.value.utf8_string().ok().map(|s| s.as_str()),
-            Tag::Ia5String => self.value.ia5_string().ok().map(|s| s.as_str()),
+            Tag::PrintableString => PrintableStringRef::try_from(self.value)
+                .ok()
+                .map(|s| s.as_str()),
+            Tag::Utf8String => Utf8StringRef::try_from(self.value).ok().map(|s| s.as_str()),
+            Tag::Ia5String => Ia5StringRef::try_from(self.value).ok().map(|s| s.as_str()),
             _ => None,
         };
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::Result;
 
-use signature::{Signature, Signer};
+use signature::{SignatureEncoding, Signer};
 use zeroize::Zeroize;
 
 /// Compound Device Identifier (CDI) Types.
@@ -32,7 +32,7 @@ impl CdiType {
 pub const CDI_ID_LEN: usize = 20;
 
 /// Trait to implement a DICE Compound Device Identifier (CDI)
-pub trait CompoundDeviceIdentifier<const N: usize, S: Signature>:
+pub trait CompoundDeviceIdentifier<const N: usize, S: SignatureEncoding>:
     Signer<S> + Zeroize + Sized
 {
     /// Returns the CDI Identifier based on the CDI public key.
