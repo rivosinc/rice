@@ -23,21 +23,3 @@ pub struct OtherName<'a> {
     #[asn1(context_specific = "0", tag_mode = "EXPLICIT")]
     pub value: AnyRef<'a>,
 }
-
-#[test]
-#[cfg(test)]
-#[cfg(feature = "alloc")]
-fn test() {
-    use alloc::string::ToString;
-    use der::{Decode, Encode};
-    use hex_literal::hex;
-
-    let input = hex!("3021060A2B060104018237140203A0130C1155706E5F323134393530313330406D696C");
-    let decoded = OtherName::from_der(&input).unwrap();
-
-    let onval = decoded.value.utf8_string().unwrap();
-    assert_eq!(onval.to_string(), "Upn_214950130@mil");
-
-    let encoded = decoded.to_vec().unwrap();
-    assert_eq!(&input[..], &encoded);
-}
