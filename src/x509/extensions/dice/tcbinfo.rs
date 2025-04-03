@@ -5,7 +5,7 @@
 use const_oid::{AssociatedOid, ObjectIdentifier};
 use der::Sequence;
 use der::{
-    asn1::{OctetStringRef, SequenceOf, UIntRef, Utf8StringRef},
+    asn1::{OctetStringRef, SequenceOf, UintRef, Utf8StringRef},
     Encode,
 };
 use digest::{Digest, OutputSizeUser};
@@ -81,15 +81,15 @@ pub struct DiceTcbInfo<'a> {
 
     #[asn1(context_specific = "3", tag_mode = "IMPLICIT", optional = "true")]
     /// The security version number associated with the target TCB.
-    pub svn: Option<UIntRef<'a>>,
+    pub svn: Option<UintRef<'a>>,
 
     #[asn1(context_specific = "4", tag_mode = "IMPLICIT", optional = "true")]
     /// The DICE layer associated with this measurement of the target TCB.
-    pub layer: Option<UIntRef<'a>>,
+    pub layer: Option<UintRef<'a>>,
 
     #[asn1(context_specific = "5", tag_mode = "IMPLICIT", optional = "true")]
     /// A value that enumerates measurement of assets within the target TCB and DICE layer.
-    pub index: Option<UIntRef<'a>>,
+    pub index: Option<UintRef<'a>>,
 
     #[asn1(context_specific = "6", tag_mode = "IMPLICIT", optional = "true")]
     /// A list of FWID values resulting from applying the hashAlg function over

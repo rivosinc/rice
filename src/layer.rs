@@ -15,18 +15,18 @@ use arrayvec::ArrayVec;
 use core::marker::PhantomData;
 use digest::Digest;
 use hkdf::HmacImpl;
-use signature::Signature;
+use signature::SignatureEncoding;
 use spin::{RwLock, RwLockReadGuard};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// A structure representing the basic functionalities of a TCG DICE layer without Certificate handling.
-pub struct LayerBase<const N: usize, S: Signature, Cdi: CompoundDeviceIdentifier<N, S>> {
+pub struct LayerBase<const N: usize, S: SignatureEncoding, Cdi: CompoundDeviceIdentifier<N, S>> {
     cdi: Cdi,
     next_cdi: RwLock<Option<Cdi>>,
     _pd_s: PhantomData<S>,
 }
 
-impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> Zeroize
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>> Zeroize
     for LayerBase<N, S, C>
 {
     fn zeroize(&mut self) {
@@ -35,12 +35,12 @@ impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> Zeroize
     }
 }
 
-impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> ZeroizeOnDrop
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>> ZeroizeOnDrop
     for LayerBase<N, S, C>
 {
 }
 
-impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> LayerBase<N, S, C> {
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>> LayerBase<N, S, C> {
     /// DICE layer constructor.
     ///
     /// # Parameters
@@ -82,7 +82,7 @@ impl<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>> LayerBase<
 /// A TCG DICE layer.
 pub struct Layer<
     const N: usize,
-    S: Signature,
+    S: SignatureEncoding,
     C: CompoundDeviceIdentifier<N, S>,
     D: Digest,
     H: HmacImpl<D> = hmac::Hmac<D>,
@@ -94,7 +94,7 @@ pub struct Layer<
 
 impl<
         const N: usize,
-        S: Signature,
+        S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
         D: Digest,
         H: HmacImpl<D>,
@@ -109,7 +109,7 @@ impl<
 
 impl<
         const N: usize,
-        S: Signature,
+        S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
         D: Digest,
         H: HmacImpl<D>,
@@ -119,7 +119,7 @@ impl<
 
 impl<
         const N: usize,
-        S: Signature,
+        S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
         D: Digest,
         H: HmacImpl<D>,
@@ -155,13 +155,14 @@ impl<
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_layer(
+        Certificate::from_layer(
             &self.base.cdi,
             self.base.next_cdi().as_ref().ok_or(Error::MissingNextCdi)?,
             extns,
             &mut cert_der_bytes,
         )?;
 
+        let cert_der: &[u8] = &cert_der_bytes;
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
     }
 
@@ -172,13 +173,14 @@ impl<
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_csr::<N, S, C, D, H>(
+        Certificate::from_csr::<N, S, C, D, H>(
             self.base.current_cdi(),
             csr,
             extns,
             &mut cert_der_bytes,
         )?;
 
+        let cert_der: &[u8] = &cert_der_bytes;
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
     }
 }

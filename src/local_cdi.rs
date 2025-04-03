@@ -9,7 +9,7 @@ use crate::{
 };
 use core::marker::PhantomData;
 use digest::Digest;
-use ed25519_dalek::{Keypair, SecretKey, Signature, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
+use ed25519_dalek::{Signature, SigningKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 use hkdf::HmacImpl;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -30,14 +30,10 @@ pub(crate) const ASYM_SALT: [u8; 64] = [
 ];
 
 /// Extract and expand an asymetric key pair from a CDI.
-fn key_pair_from_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8]) -> Result<Keypair> {
+fn key_pair_from_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8]) -> Result<SigningKey> {
     let mut private_key_bytes = [0u8; SECRET_KEY_LENGTH];
     kdf::<D, H>(cdi, &ASYM_SALT, &[b"Key_Pair"], &mut private_key_bytes)?;
-    let secret = SecretKey::from_bytes(&private_key_bytes).map_err(Error::InvalidKey)?;
-    Ok(Keypair {
-        public: (&secret).into(),
-        secret,
-    })
+    Ok(SigningKey::from(private_key_bytes))
 }
 
 /// A DICE Compound Device Identifier (CDI) implementation.
@@ -45,7 +41,7 @@ pub struct LocalCdi<const N: usize, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
     cdi: [u8; N],
     cdi_type: CdiType,
     #[allow(dead_code)]
-    key_pair: Keypair,
+    key_pair: SigningKey,
 
     _pd_d: PhantomData<D>,
     _pd_h: PhantomData<H>,
@@ -122,13 +118,13 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
 
     /// Public key for the current CDI.
     fn public_key(&self) -> [u8; PUBLIC_KEY_LENGTH] {
-        self.key_pair.public.to_bytes()
+        self.key_pair.verifying_key().to_bytes()
     }
 
     /// CDI Identifier based on the CDI public key.
     fn id(&self) -> Result<[u8; CDI_ID_LEN]> {
         let mut cdi_id = [0u8; CDI_ID_LEN];
-        derive_cdi_id::<D, H>(self.key_pair.public.as_bytes(), &mut cdi_id)?;
+        derive_cdi_id::<D, H>(self.key_pair.as_bytes(), &mut cdi_id)?;
 
         Ok(cdi_id)
     }

@@ -9,19 +9,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-arrayvec = { version = "0.7.2", default-features = false }
+arrayvec = { version = "0.7.6", default-features = false }
 const-oid = { version = "0.9.0", features = ["db"] }
-der = { version = "0.6.0", features = ["derive", "flagset", "oid"] }
-digest = {version = "0.10.3", default-features = false }
-ed25519 = { version = "1.5.2", default-features = false, features = ["pkcs8"] }
-ed25519-dalek = { version = "1.0.1", default-features = false, features = ["u64_backend"] }
-flagset = "0.4.3"
-generic-array = "0.14.6"
+der = { version = "0.7.9", features = ["derive", "flagset", "oid"] }
+digest = { version = "0.10.7", default-features = false }
+ed25519 = { version = "2.2.3", default-features = false, features = ["pkcs8"] }
+ed25519-dalek = { version = "2.1.1", default-features = false }
+flagset = "0.4.6"
+generic-array = "0.14.7"
 hex = { version = "0.4.3", default-features = false }
-hkdf = "0.12.3"
+hkdf = "0.12.4"
 hmac = "0.12.1"
-sha2 = {version = "0.10", default-features = false }
-signature = { version = "1.6.4", default-features = false }
-spin = { version = "*", default-features = false, features = ["rwlock"] }
-spki = "0.6.0"
-zeroize = "1.5.7"
+sha2 = { version = "0.10.8", default-features = false }
+signature = { version = "2.2.0", default-features = false }
+spin = { version = "0.10.0", default-features = false, features = ["rwlock"] }
+spki = "0.7.3"
+zeroize = "1.8.1"

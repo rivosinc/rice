@@ -4,13 +4,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use const_oid::AssociatedOid;
-use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UIntRef, Utf8StringRef};
+use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UintRef, Utf8StringRef};
 use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
 use digest::Digest;
 use hkdf::HmacImpl;
-use signature::Signature;
-use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
+use signature::SignatureEncoding;
+use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoRef};
 
 use crate::{
     cdi::{CompoundDeviceIdentifier, CDI_ID_LEN},
@@ -39,7 +39,7 @@ fn x509_serial_number(id: &[u8]) -> Result<RdnSequence> {
         value: AnyRef::from(Utf8StringRef::new(id).map_err(Error::InvalidDer)?),
     };
     let mut sn_atv_set = SetOf::<AttributeTypeAndValue, MAX_CERT_ATV>::new();
-    sn_atv_set.add(sn_atv).map_err(Error::InvalidDer)?;
+    sn_atv_set.insert(sn_atv).map_err(Error::InvalidDer)?;
     let rdn = RelativeDistinguishedName(sn_atv_set);
     let mut rdn_sequence = SequenceOf::<RelativeDistinguishedName, MAX_CERT_RDN>::new();
     rdn_sequence.add(rdn).map_err(Error::InvalidDer)?;
@@ -129,7 +129,7 @@ impl Default for Version {
 ///     issuer               Name,
 ///     validity             Validity,
 ///     subject              Name,
-///     subjectPublicKeyInfo SubjectPublicKeyInfo,
+///     subjectPublicKeyInfo SubjectPublicKeyInfoRef,
 ///     issuerUniqueID  [1]  IMPLICIT UniqueIdentifier OPTIONAL,
 ///                          -- If present, version MUST be v2 or v3
 ///     subjectUniqueID [2]  IMPLICIT UniqueIdentifier OPTIONAL,
@@ -152,12 +152,12 @@ pub struct TbsCertificate<'a> {
     #[asn1(context_specific = "0", default = "Default::default")]
     pub version: Version,
 
-    pub serial_number: UIntRef<'a>,
-    pub signature: AlgorithmIdentifier<'a>,
+    pub serial_number: UintRef<'a>,
+    pub signature: AlgorithmIdentifier<AnyRef<'a>>,
     pub issuer: Name<'a>,
     pub validity: Validity,
     pub subject: Name<'a>,
-    pub subject_public_key_info: SubjectPublicKeyInfo<'a>,
+    pub subject_public_key_info: SubjectPublicKeyInfoRef<'a>,
 
     #[asn1(context_specific = "1", tag_mode = "IMPLICIT", optional = "true")]
     pub issuer_unique_id: Option<BitStringRef<'a>>,
@@ -184,7 +184,7 @@ pub struct TbsCertificate<'a> {
 #[allow(missing_docs)]
 pub struct Certificate<'a> {
     pub tbs_certificate: TbsCertificate<'a>,
-    pub signature_algorithm: AlgorithmIdentifier<'a>,
+    pub signature_algorithm: AlgorithmIdentifier<AnyRef<'a>>,
     pub signature: BitStringRef<'a>,
 }
 
@@ -197,12 +197,12 @@ impl<'a> Certificate<'a> {
     /// @next_cdi: The next layer CDI.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_layer<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>>(
+    pub fn from_layer<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>>(
         current_cdi: &C,
         next_cdi: &C,
         extns: Option<&'a [&'a [u8]]>,
-        certificate_buf: &'a mut [u8],
-    ) -> Result<&'a [u8]> {
+        certificate_buf: &mut [u8],
+    ) -> Result<()> {
         // The serial number is the next layer CDI ID
         let next_cdi_id = next_cdi.id()?;
 
@@ -210,9 +210,12 @@ impl<'a> Certificate<'a> {
         let subject = x509_serial_number(&next_cdi_id)?;
 
         // The subject public key is the next CDI derived public key.
-        let subject_public_key_info = SubjectPublicKeyInfo {
+        let pub_key = next_cdi.public_key();
+        let bit_string_ref =
+            BitStringRef::from_bytes(&pub_key).map_err(|_| Error::InvalidSignature)?;
+        let subject_public_key_info = SubjectPublicKeyInfoRef {
             algorithm: ed25519::pkcs8::ALGORITHM_ID,
-            subject_public_key: &next_cdi.public_key(),
+            subject_public_key: bit_string_ref,
         };
 
         Certificate::from_current_cdi(
@@ -235,7 +238,7 @@ impl<'a> Certificate<'a> {
     /// @certificate_buf: Buffer to hold the certificate DER.
     pub fn from_csr<
         const N: usize,
-        S: Signature,
+        S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
         D: Digest,
         H: HmacImpl<D>,
@@ -244,7 +247,7 @@ impl<'a> Certificate<'a> {
         csr: &CertReq<'a>,
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
-    ) -> Result<&'a [u8]> {
+    ) -> Result<()> {
         // The serial number is derived from the CSR public key.
         let mut cdi_id = [0u8; CDI_ID_LEN * 2];
         csr.cdi_id::<D, H>(&mut cdi_id)?;
@@ -253,24 +256,24 @@ impl<'a> Certificate<'a> {
             current_cdi,
             &cdi_id,
             csr.info.subject.clone(),
-            csr.info.public_key,
+            csr.info.public_key.clone(),
             extns,
             certificate_buf,
         )
     }
 
-    fn from_current_cdi<const N: usize, S: Signature, C: CompoundDeviceIdentifier<N, S>>(
+    fn from_current_cdi<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>>(
         current_cdi: &C,
         serial_number_bytes: &[u8],
         subject: RdnSequence,
-        subject_public_key_info: SubjectPublicKeyInfo,
+        subject_public_key_info: SubjectPublicKeyInfoRef<'a>,
         extns: Option<&'a [&'a [u8]]>,
         certificate_buf: &'a mut [u8],
-    ) -> Result<&'a [u8]> {
+    ) -> Result<()> {
         let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
         hex::encode_to_slice(current_cdi.id()?, &mut current_cdi_id)
             .map_err(Error::InvalidCdiId)?;
-        let serial_number = UIntRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
+        let serial_number = UintRef::new(serial_number_bytes).map_err(Error::InvalidDer)?;
 
         // Issuer contains one ATV for one RDN: `SN=<Current CDI_ID>`
         let issuer = x509_serial_number(&current_cdi_id)?;
@@ -351,16 +354,18 @@ impl<'a> Certificate<'a> {
             .encode_to_slice(&mut tbs_bytes_buffer)
             .map_err(Error::InvalidDer)?;
         let signature = current_cdi.sign(tbs_bytes);
-        let signature_bytes = signature.as_bytes();
+        let signature_bytes = signature.to_bytes();
+        let signature_bytes_ref = signature_bytes.as_ref();
 
         let certificate = Certificate {
             tbs_certificate,
-            signature: BitStringRef::from_bytes(signature_bytes).map_err(Error::InvalidDer)?,
+            signature: BitStringRef::from_bytes(signature_bytes_ref).map_err(Error::InvalidDer)?,
             signature_algorithm: ed25519::pkcs8::ALGORITHM_ID,
         };
 
         certificate
             .encode_to_slice(certificate_buf)
-            .map_err(Error::InvalidDer)
+            .map_err(Error::InvalidDer)?;
+        Ok(())
     }
 }
