@@ -44,7 +44,7 @@ use der::asn1::{OctetStringRef, SequenceOf};
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct SubjectKeyIdentifier<'a>(pub OctetStringRef<'a>);
 
-impl<'a> AssociatedOid for SubjectKeyIdentifier<'a> {
+impl AssociatedOid for SubjectKeyIdentifier<'_> {
     const OID: ObjectIdentifier = ID_CE_SUBJECT_KEY_IDENTIFIER;
 }
 
@@ -60,7 +60,7 @@ impl_newtype!(SubjectKeyIdentifier<'a>, OctetStringRef<'a>);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SubjectAltName<'a>(pub name::GeneralNames<'a>);
 
-impl<'a> AssociatedOid for SubjectAltName<'a> {
+impl AssociatedOid for SubjectAltName<'_> {
     const OID: ObjectIdentifier = ID_CE_SUBJECT_ALT_NAME;
 }
 
@@ -76,7 +76,7 @@ impl_newtype!(SubjectAltName<'a>, name::GeneralNames<'a>);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct IssuerAltName<'a>(pub name::GeneralNames<'a>);
 
-impl<'a> AssociatedOid for IssuerAltName<'a> {
+impl AssociatedOid for IssuerAltName<'_> {
     const OID: ObjectIdentifier = ID_CE_ISSUER_ALT_NAME;
 }
 
@@ -92,7 +92,7 @@ impl_newtype!(IssuerAltName<'a>, name::GeneralNames<'a>);
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SubjectDirectoryAttributes<'a>(pub SequenceOf<AttributeTypeAndValue<'a>, 8>);
 
-impl<'a> AssociatedOid for SubjectDirectoryAttributes<'a> {
+impl AssociatedOid for SubjectDirectoryAttributes<'_> {
     const OID: ObjectIdentifier = ID_CE_SUBJECT_DIRECTORY_ATTRIBUTES;
 }
 
