@@ -38,6 +38,6 @@ pub struct AuthorityKeyIdentifier<'a> {
     pub authority_cert_serial_number: Option<UintRef<'a>>,
 }
 
-impl<'a> AssociatedOid for AuthorityKeyIdentifier<'a> {
+impl AssociatedOid for AuthorityKeyIdentifier<'_> {
     const OID: ObjectIdentifier = ID_CE_AUTHORITY_KEY_IDENTIFIER;
 }

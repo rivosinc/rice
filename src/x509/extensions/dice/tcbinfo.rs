@@ -159,7 +159,7 @@ impl<'a> DiceTcbInfo<'a> {
     }
 }
 
-impl<'a> AssociatedOid for DiceTcbInfo<'a> {
+impl AssociatedOid for DiceTcbInfo<'_> {
     const OID: ObjectIdentifier = TCG_DICE_TCB_INFO;
 }
 

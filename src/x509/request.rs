@@ -89,7 +89,7 @@ impl<'a> TryFrom<&'a [u8]> for CertReq<'a> {
     }
 }
 
-impl<'a> CertReq<'a> {
+impl CertReq<'_> {
     /// Verifies a CSR signature
     pub fn verify(&self) -> Result<()> {
         verifier_from_algorithm(self.algorithm)?.verify_csr(self)
