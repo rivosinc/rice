@@ -155,14 +155,13 @@ impl<
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        Certificate::from_layer(
+        let cert_der = Certificate::from_layer(
             &self.base.cdi,
             self.base.next_cdi().as_ref().ok_or(Error::MissingNextCdi)?,
             extns,
             &mut cert_der_bytes,
         )?;
 
-        let cert_der: &[u8] = &cert_der_bytes;
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
     }
 
@@ -173,14 +172,13 @@ impl<
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        Certificate::from_csr::<N, S, C, D, H>(
+        let cert_der = Certificate::from_csr::<N, S, C, D, H>(
             self.base.current_cdi(),
             csr,
             extns,
             &mut cert_der_bytes,
         )?;
 
-        let cert_der: &[u8] = &cert_der_bytes;
         ArrayVec::try_from(cert_der).map_err(Error::CertificateTooLarge)
     }
 }
