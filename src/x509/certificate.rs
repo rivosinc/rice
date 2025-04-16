@@ -197,12 +197,17 @@ impl<'a> Certificate<'a> {
     /// @next_cdi: The next layer CDI.
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
-    pub fn from_layer<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>>(
+    pub fn from_layer<
+        'buf,
+        const N: usize,
+        S: SignatureEncoding,
+        C: CompoundDeviceIdentifier<N, S>,
+    >(
         current_cdi: &C,
         next_cdi: &C,
         extns: Option<&'a [&'a [u8]]>,
-        certificate_buf: &mut [u8],
-    ) -> Result<()> {
+        certificate_buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8]> {
         // The serial number is the next layer CDI ID
         let next_cdi_id = next_cdi.id()?;
 
@@ -237,6 +242,7 @@ impl<'a> Certificate<'a> {
     /// @extns: An optional slice of x.509 DER-formatted extensions slices.
     /// @certificate_buf: Buffer to hold the certificate DER.
     pub fn from_csr<
+        'buf,
         const N: usize,
         S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
@@ -246,8 +252,8 @@ impl<'a> Certificate<'a> {
         current_cdi: &C,
         csr: &CertReq<'a>,
         extns: Option<&'a [&'a [u8]]>,
-        certificate_buf: &'a mut [u8],
-    ) -> Result<()> {
+        certificate_buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8]> {
         // The serial number is derived from the CSR public key.
         let mut cdi_id = [0u8; CDI_ID_LEN * 2];
         csr.cdi_id::<D, H>(&mut cdi_id)?;
@@ -262,14 +268,19 @@ impl<'a> Certificate<'a> {
         )
     }
 
-    fn from_current_cdi<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>>(
+    fn from_current_cdi<
+        'buf,
+        const N: usize,
+        S: SignatureEncoding,
+        C: CompoundDeviceIdentifier<N, S>,
+    >(
         current_cdi: &C,
         serial_number_bytes: &[u8],
         subject: RdnSequence,
         subject_public_key_info: SubjectPublicKeyInfoRef<'a>,
         extns: Option<&'a [&'a [u8]]>,
-        certificate_buf: &'a mut [u8],
-    ) -> Result<()> {
+        certificate_buf: &'buf mut [u8],
+    ) -> Result<&'buf [u8]> {
         let mut current_cdi_id = [0u8; 2 * CDI_ID_LEN];
         hex::encode_to_slice(current_cdi.id()?, &mut current_cdi_id)
             .map_err(Error::InvalidCdiId)?;
@@ -365,7 +376,6 @@ impl<'a> Certificate<'a> {
 
         certificate
             .encode_to_slice(certificate_buf)
-            .map_err(Error::InvalidDer)?;
-        Ok(())
+            .map_err(Error::InvalidDer)
     }
 }
