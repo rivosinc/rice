@@ -42,13 +42,13 @@ use der::asn1::{OctetStringRef, SequenceOf};
 ///
 /// [RFC 5280 Section 4.2.1.2]: https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct SubjectKeyIdentifier<'a>(pub OctetStringRef<'a>);
+pub struct SubjectKeyIdentifier<'a>(pub &'a OctetStringRef);
 
 impl AssociatedOid for SubjectKeyIdentifier<'_> {
     const OID: ObjectIdentifier = ID_CE_SUBJECT_KEY_IDENTIFIER;
 }
 
-impl_newtype!(SubjectKeyIdentifier<'a>, OctetStringRef<'a>);
+impl_newtype!(SubjectKeyIdentifier<'a>, &'a OctetStringRef);
 
 /// SubjectAltName as defined in [RFC 5280 Section 4.2.1.6].
 ///

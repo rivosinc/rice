@@ -13,8 +13,7 @@ use crate::{
 
 use arrayvec::ArrayVec;
 use core::marker::PhantomData;
-use digest::Digest;
-use hkdf::HmacImpl;
+use digest::block_api::EagerHash;
 use signature::SignatureEncoding;
 use spin::{RwLock, RwLockReadGuard};
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -74,7 +73,7 @@ impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>> La
     }
 
     /// Get a read lock guard of the optional next CDI.
-    pub fn next_cdi(&self) -> RwLockReadGuard<Option<C>> {
+    pub fn next_cdi(&self) -> RwLockReadGuard<'_, Option<C>> {
         self.next_cdi.read()
     }
 }
@@ -84,46 +83,28 @@ pub struct Layer<
     const N: usize,
     S: SignatureEncoding,
     C: CompoundDeviceIdentifier<N, S>,
-    D: Digest,
-    H: HmacImpl<D> = hmac::Hmac<D>,
+    D: EagerHash,
 > {
     base: LayerBase<N, S, C>,
     _pd_d: PhantomData<D>,
-    _pd_h: PhantomData<H>,
 }
 
-impl<
-        const N: usize,
-        S: SignatureEncoding,
-        C: CompoundDeviceIdentifier<N, S>,
-        D: Digest,
-        H: HmacImpl<D>,
-    > Zeroize for Layer<N, S, C, D, H>
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>, D: EagerHash> Zeroize
+    for Layer<N, S, C, D>
 {
     fn zeroize(&mut self) {
         self.base.zeroize();
         self._pd_d.zeroize();
-        self._pd_h.zeroize();
     }
 }
 
-impl<
-        const N: usize,
-        S: SignatureEncoding,
-        C: CompoundDeviceIdentifier<N, S>,
-        D: Digest,
-        H: HmacImpl<D>,
-    > ZeroizeOnDrop for Layer<N, S, C, D, H>
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>, D: EagerHash>
+    ZeroizeOnDrop for Layer<N, S, C, D>
 {
 }
 
-impl<
-        const N: usize,
-        S: SignatureEncoding,
-        C: CompoundDeviceIdentifier<N, S>,
-        D: Digest,
-        H: HmacImpl<D>,
-    > Layer<N, S, C, D, H>
+impl<const N: usize, S: SignatureEncoding, C: CompoundDeviceIdentifier<N, S>, D: EagerHash>
+    Layer<N, S, C, D>
 {
     /// DICE layer constructor.
     ///
@@ -134,7 +115,6 @@ impl<
         Layer {
             base: LayerBase::new(cdi, next_cdi),
             _pd_d: PhantomData,
-            _pd_h: PhantomData,
         }
     }
 
@@ -172,7 +152,7 @@ impl<
         extns: Option<&'a [&'a [u8]]>,
     ) -> Result<ArrayVec<u8, MAX_CERT_SIZE>> {
         let mut cert_der_bytes = [0u8; MAX_CERT_SIZE];
-        let cert_der = Certificate::from_csr::<N, S, C, D, H>(
+        let cert_der = Certificate::from_csr::<N, S, C, D>(
             self.base.current_cdi(),
             csr,
             extns,

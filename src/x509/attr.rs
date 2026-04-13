@@ -111,7 +111,7 @@ impl Parser {
         self.bytes.try_push(c).map_err(|_| {
             Error::new(
                 ErrorKind::Overlength,
-                Length::new(MAX_CSR_ATV_VALUE_LEN as u16),
+                Length::new(MAX_CSR_ATV_VALUE_LEN as u32),
             )
         })
     }
@@ -152,7 +152,7 @@ impl AttributeTypeAndValue<'_> {
 
         for b in atv_slice {
             atv_bytes.try_push(*b).map_err(|_| {
-                Error::new(ErrorKind::Overlength, Length::new(MAX_CSR_ATV_LEN as u16))
+                Error::new(ErrorKind::Overlength, Length::new(MAX_CSR_ATV_LEN as u32))
             })?;
         }
 

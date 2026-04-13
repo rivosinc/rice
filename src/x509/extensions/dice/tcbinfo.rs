@@ -8,9 +8,8 @@ use der::{
     asn1::{OctetStringRef, SequenceOf, UintRef, Utf8StringRef},
     Encode,
 };
-use digest::{Digest, OutputSizeUser};
+use digest::Digest;
 use flagset::{flags, FlagSet};
-use generic_array::GenericArray;
 
 use crate::{
     x509::{extensions::Extension, MAX_TCBINFO_FWID},
@@ -105,11 +104,11 @@ pub struct DiceTcbInfo<'a> {
 
     #[asn1(context_specific = "8", tag_mode = "IMPLICIT", optional = "true")]
     /// Vendor supplied values that encode vendor, model, or device specific state.
-    pub vendor_info: Option<OctetStringRef<'a>>,
+    pub vendor_info: Option<&'a OctetStringRef>,
 
     #[asn1(context_specific = "9", tag_mode = "IMPLICIT", optional = "true")]
     /// A machine readable description of the measurement.
-    pub r#type: Option<OctetStringRef<'a>>,
+    pub r#type: Option<&'a OctetStringRef>,
 }
 
 impl<'a> DiceTcbInfo<'a> {
@@ -123,11 +122,11 @@ impl<'a> DiceTcbInfo<'a> {
     pub fn add_fwid<D: Digest>(
         &mut self,
         hash_alg: ObjectIdentifier,
-        digest: &'a GenericArray<u8, <D as OutputSizeUser>::OutputSize>,
+        digest: &'a [u8],
     ) -> Result<&mut Self> {
         let fwid = FwId {
             hash_alg,
-            digest: OctetStringRef::new(digest.as_slice()).map_err(Error::InvalidDigest)?,
+            digest: OctetStringRef::new(digest).map_err(Error::InvalidDigest)?,
         };
 
         if self.fwids.is_none() {
@@ -173,7 +172,7 @@ pub struct FwId<'a> {
     /// Hash algorithm
     pub hash_alg: ObjectIdentifier,
     /// Digest
-    pub digest: OctetStringRef<'a>,
+    pub digest: &'a OctetStringRef,
 }
 
 /// A list of TCB layer hashes.

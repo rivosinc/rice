@@ -75,10 +75,12 @@ macro_rules! impl_newtype {
         }
 
         impl<'a> ::der::DecodeValue<'a> for $newtype {
+            type Error = <$inner as ::der::DecodeValue<'a>>::Error;
+
             fn decode_value<R: ::der::Reader<'a>>(
                 decoder: &mut R,
                 header: ::der::Header,
-            ) -> ::der::Result<Self> {
+            ) -> core::result::Result<Self, Self::Error> {
                 Ok(Self(<$inner as ::der::DecodeValue>::decode_value(
                     decoder, header,
                 )?))

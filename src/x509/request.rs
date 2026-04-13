@@ -96,9 +96,9 @@ impl CertReq<'_> {
     }
 
     /// Generates a CDI ID from a CSR public key
-    pub fn cdi_id<D: digest::Digest, H: hkdf::HmacImpl<D>>(&self, cdi_id: &mut [u8]) -> Result<()> {
+    pub fn cdi_id<D: digest::block_api::EagerHash>(&self, cdi_id: &mut [u8]) -> Result<()> {
         let mut cdi_id_bytes = [0u8; CDI_ID_LEN];
-        crate::kdf::derive_cdi_id::<D, H>(
+        crate::kdf::derive_cdi_id::<D>(
             self.info.public_key.subject_public_key.raw_bytes(),
             &mut cdi_id_bytes,
         )?;

@@ -29,7 +29,7 @@ pub(crate) const AUTH_KEY_ID_EXTENSION_LEN: usize = 64;
 #[allow(missing_docs)]
 pub struct AuthorityKeyIdentifier<'a> {
     #[asn1(context_specific = "0", tag_mode = "IMPLICIT", optional = "true")]
-    pub key_identifier: Option<OctetStringRef<'a>>,
+    pub key_identifier: Option<&'a OctetStringRef>,
 
     #[asn1(context_specific = "1", tag_mode = "IMPLICIT", optional = "true")]
     pub authority_cert_issuer: Option<GeneralNames<'a>>,
