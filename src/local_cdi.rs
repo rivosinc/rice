@@ -8,9 +8,8 @@ use crate::{
     Error, Result,
 };
 use core::marker::PhantomData;
-use digest::Digest;
+use digest::block_api::EagerHash;
 use ed25519_dalek::{Signature, SigningKey, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
-use hkdf::HmacImpl;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 // From the OpenDice implementation.
@@ -30,35 +29,33 @@ pub(crate) const ASYM_SALT: [u8; 64] = [
 ];
 
 /// Extract and expand an asymetric key pair from a CDI.
-fn key_pair_from_cdi<D: Digest, H: HmacImpl<D>>(cdi: &[u8]) -> Result<SigningKey> {
+fn key_pair_from_cdi<D: EagerHash>(cdi: &[u8]) -> Result<SigningKey> {
     let mut private_key_bytes = [0u8; SECRET_KEY_LENGTH];
-    kdf::<D, H>(cdi, &ASYM_SALT, &[b"Key_Pair"], &mut private_key_bytes)?;
+    kdf::<D>(cdi, &ASYM_SALT, &[b"Key_Pair"], &mut private_key_bytes)?;
     Ok(SigningKey::from(private_key_bytes))
 }
 
 /// A DICE Compound Device Identifier (CDI) implementation.
-pub struct LocalCdi<const N: usize, D: Digest, H: HmacImpl<D> = hmac::Hmac<D>> {
+pub struct LocalCdi<const N: usize, D: EagerHash> {
     cdi: [u8; N],
     cdi_type: CdiType,
     #[allow(dead_code)]
     key_pair: SigningKey,
 
     _pd_d: PhantomData<D>,
-    _pd_h: PhantomData<H>,
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> Zeroize for LocalCdi<N, D, H> {
+impl<const N: usize, D: EagerHash> Zeroize for LocalCdi<N, D> {
     fn zeroize(&mut self) {
         self.cdi.zeroize();
         self.key_pair.to_bytes().zeroize();
         self._pd_d.zeroize();
-        self._pd_h.zeroize();
     }
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> ZeroizeOnDrop for LocalCdi<N, D, H> {}
+impl<const N: usize, D: EagerHash> ZeroizeOnDrop for LocalCdi<N, D> {}
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> LocalCdi<N, D, H> {
+impl<const N: usize, D: EagerHash> LocalCdi<N, D> {
     /// DICE CDI constructor.
     ///
     /// # Parameters
@@ -66,26 +63,25 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>> LocalCdi<N, D, H> {
     /// @cdi_type: The type of CDI
     pub fn new(cdi_bytes: &[u8], cdi_type: CdiType) -> Result<Self> {
         let cdi = cdi_bytes.try_into().map_err(Error::InvalidCdi)?;
-        let key_pair = key_pair_from_cdi::<D, H>(cdi_bytes)?;
+        let key_pair = key_pair_from_cdi::<D>(cdi_bytes)?;
 
         Ok(LocalCdi {
             cdi,
             cdi_type,
             key_pair,
             _pd_d: PhantomData,
-            _pd_h: PhantomData,
         })
     }
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>> signature::Signer<Signature> for LocalCdi<N, D, H> {
+impl<const N: usize, D: EagerHash> signature::Signer<Signature> for LocalCdi<N, D> {
     fn try_sign(&self, msg: &[u8]) -> core::result::Result<Signature, signature::Error> {
         self.key_pair.try_sign(msg)
     }
 }
 
-impl<const N: usize, D: Digest, H: HmacImpl<D>>
-    CompoundDeviceIdentifier<PUBLIC_KEY_LENGTH, Signature> for LocalCdi<N, D, H>
+impl<const N: usize, D: EagerHash> CompoundDeviceIdentifier<PUBLIC_KEY_LENGTH, Signature>
+    for LocalCdi<N, D>
 {
     /// Derive the next layer CDI and keypair for the current CDI, from a TCI
     /// and some additional context information.
@@ -96,7 +92,7 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
     /// @tci is typically the next layer TCI. If None is passed, the ID_SALT salt is used.
     fn next(&self, info: Option<&[u8]>, next_tci: Option<&[u8]>) -> Result<Self> {
         let mut next_cdi: [u8; N] = [0; N];
-        kdf::<D, H>(
+        kdf::<D>(
             self.cdi.as_slice(),
             next_tci.unwrap_or(&ID_SALT),
             &[self.cdi_type.as_bytes(), info.unwrap_or(&[0u8; 0])],
@@ -104,7 +100,7 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
         )?;
 
         // Generate the key pair for the next CDI.
-        let next_key_pair = key_pair_from_cdi::<D, H>(next_cdi.as_slice())?;
+        let next_key_pair = key_pair_from_cdi::<D>(next_cdi.as_slice())?;
 
         Ok(LocalCdi {
             cdi: next_cdi,
@@ -112,7 +108,6 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
             key_pair: next_key_pair,
 
             _pd_d: PhantomData,
-            _pd_h: PhantomData,
         })
     }
 
@@ -124,7 +119,7 @@ impl<const N: usize, D: Digest, H: HmacImpl<D>>
     /// CDI Identifier based on the CDI public key.
     fn id(&self) -> Result<[u8; CDI_ID_LEN]> {
         let mut cdi_id = [0u8; CDI_ID_LEN];
-        derive_cdi_id::<D, H>(self.key_pair.as_bytes(), &mut cdi_id)?;
+        derive_cdi_id::<D>(self.key_pair.as_bytes(), &mut cdi_id)?;
 
         Ok(cdi_id)
     }

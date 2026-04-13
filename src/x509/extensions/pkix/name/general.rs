@@ -57,7 +57,7 @@ pub enum GeneralName<'a> {
     UniformResourceIdentifier(Ia5StringRef<'a>),
 
     #[asn1(context_specific = "7", tag_mode = "IMPLICIT")]
-    IpAddress(OctetStringRef<'a>),
+    IpAddress(&'a OctetStringRef),
 
     #[asn1(context_specific = "8", tag_mode = "IMPLICIT")]
     RegisteredId(ObjectIdentifier),

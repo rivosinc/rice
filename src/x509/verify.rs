@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use const_oid::ObjectIdentifier;
 use der::Encode;
 use ed25519::pkcs8::{DecodePublicKey, PublicKeyBytes};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
@@ -11,6 +12,9 @@ use crate::{
     x509::{request::CertReq, MAX_CSR_LEN},
     Error, Result,
 };
+
+/// Ed25519 algorithm OID (1.3.101.112) from RFC 8410.
+const ED25519_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.101.112");
 
 pub trait CertVerifier {
     /// Verifies a CSR signature
@@ -33,8 +37,8 @@ impl CertVerifier for Ed25519Verifier {
             .public_key
             .encode_to_slice(&mut pub_key_der_bytes)
             .map_err(Error::InvalidDer)?;
-        let pub_key_bytes =
-            PublicKeyBytes::from_public_key_der(pub_key_der).map_err(Error::InvalidPublicKeyDer)?;
+        let pub_key_bytes = PublicKeyBytes::from_public_key_der(pub_key_der)
+            .map_err(|_| Error::InvalidPublicKey)?;
         let pub_key = VerifyingKey::from_bytes(&pub_key_bytes.to_bytes())
             .map_err(|_| Error::InvalidPublicKey)?;
 
@@ -55,7 +59,7 @@ impl CertVerifier for Ed25519Verifier {
 
 pub fn verifier_from_algorithm(alg: AlgorithmIdentifier<()>) -> Result<&'static dyn CertVerifier> {
     match alg.oid {
-        ed25519::pkcs8::ALGORITHM_OID => Ok(&ED25519_V),
+        ED25519_OID => Ok(&ED25519_V),
 
         _ => Err(Error::UnsupportedAlgorithm(alg.oid)),
     }

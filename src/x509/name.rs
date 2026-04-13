@@ -49,7 +49,7 @@ impl RdnSequence<'_> {
                 rdn_bytes.try_push(*b).map_err(|_| {
                     Error::new(
                         ErrorKind::Overlength,
-                        Length::new(MAX_CSR_RDN_SEQUENCE_LEN as u16),
+                        Length::new(MAX_CSR_RDN_SEQUENCE_LEN as u32),
                     )
                 })?;
             }
@@ -132,7 +132,7 @@ impl RelativeDistinguishedName<'_> {
         for atv in atvs.iter() {
             for b in atv.to_array()?.iter() {
                 rdn_bytes.try_push(*b).map_err(|_| {
-                    Error::new(ErrorKind::Overlength, Length::new(MAX_CSR_RDN_LEN as u16))
+                    Error::new(ErrorKind::Overlength, Length::new(MAX_CSR_RDN_LEN as u32))
                 })?;
             }
         }

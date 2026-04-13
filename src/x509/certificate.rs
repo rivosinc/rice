@@ -3,14 +3,22 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use const_oid::AssociatedOid;
+use const_oid::{AssociatedOid, ObjectIdentifier};
 use der::asn1::{BitStringRef, OctetStringRef, SequenceOf, SetOf, UintRef, Utf8StringRef};
 use der::{AnyRef, Decode, Encode};
 use der::{Enumerated, Sequence};
-use digest::Digest;
-use hkdf::HmacImpl;
+use digest::block_api::EagerHash;
 use signature::SignatureEncoding;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoRef};
+
+/// Ed25519 algorithm OID (1.3.101.112) from RFC 8410.
+const ED25519_OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.101.112");
+
+/// Ed25519 `AlgorithmIdentifier` using this project's `spki` version.
+const ED25519_ALGORITHM_ID: AlgorithmIdentifier<AnyRef<'static>> = AlgorithmIdentifier {
+    oid: ED25519_OID,
+    parameters: None,
+};
 
 use crate::{
     cdi::{CompoundDeviceIdentifier, CDI_ID_LEN},
@@ -33,7 +41,7 @@ use crate::{
 /// Maximum supported size for the attestation certificate.
 pub const MAX_CERT_SIZE: usize = 4096;
 
-fn x509_serial_number(id: &[u8]) -> Result<RdnSequence> {
+fn x509_serial_number(id: &[u8]) -> Result<RdnSequence<'_>> {
     let sn_atv = AttributeTypeAndValue {
         oid: const_oid::db::rfc4519::SN,
         value: AnyRef::from(Utf8StringRef::new(id).map_err(Error::InvalidDer)?),
@@ -95,11 +103,12 @@ macro_rules! auth_key_extension {
 /// ```
 ///
 /// [RFC 5280 Section 4.1]: https://datatracker.ietf.org/doc/html/rfc5280#section-4.1
-#[derive(Clone, Debug, Copy, PartialEq, Eq, Enumerated)]
+#[derive(Clone, Debug, Default, Copy, PartialEq, Eq, Enumerated)]
 #[asn1(type = "INTEGER")]
 #[repr(u8)]
 pub enum Version {
     /// Version 1 (default)
+    #[default]
     V1 = 0,
 
     /// Version 2
@@ -107,12 +116,6 @@ pub enum Version {
 
     /// Version 3
     V3 = 2,
-}
-
-impl Default for Version {
-    fn default() -> Self {
-        Self::V1
-    }
 }
 
 /// X.509 `TbsCertificate` as defined in [RFC 5280 Section 4.1]
@@ -219,7 +222,7 @@ impl<'a> Certificate<'a> {
         let bit_string_ref =
             BitStringRef::from_bytes(&pub_key).map_err(|_| Error::InvalidSignature)?;
         let subject_public_key_info = SubjectPublicKeyInfoRef {
-            algorithm: ed25519::pkcs8::ALGORITHM_ID,
+            algorithm: ED25519_ALGORITHM_ID,
             subject_public_key: bit_string_ref,
         };
 
@@ -246,8 +249,7 @@ impl<'a> Certificate<'a> {
         const N: usize,
         S: SignatureEncoding,
         C: CompoundDeviceIdentifier<N, S>,
-        D: Digest,
-        H: HmacImpl<D>,
+        D: EagerHash,
     >(
         current_cdi: &C,
         csr: &CertReq<'a>,
@@ -256,7 +258,7 @@ impl<'a> Certificate<'a> {
     ) -> Result<&'buf [u8]> {
         // The serial number is derived from the CSR public key.
         let mut cdi_id = [0u8; CDI_ID_LEN * 2];
-        csr.cdi_id::<D, H>(&mut cdi_id)?;
+        csr.cdi_id::<D>(&mut cdi_id)?;
 
         Certificate::from_current_cdi(
             current_cdi,
@@ -295,13 +297,17 @@ impl<'a> Certificate<'a> {
         };
 
         // Certficate extensions
+        // Declare all extension buffers before `extensions` so they outlive it
+        // (Rust drops values in reverse declaration order).
+        let mut key_usage_buffer = [0u8; KEY_VALUE_EXTENSION_LEN];
+        let mut basic_constraints_buffer = [0u8; BASIC_CONSTRAINTS_EXTENSION_LEN];
+        let mut auth_key_id_buffer = [0u8; AUTH_KEY_ID_EXTENSION_LEN];
         let mut extensions = SequenceOf::<_, MAX_CERT_EXTENSIONS>::new();
 
         // Add the keyUsage extension.
         // The SubjecPublicKeyInfo passed through the CSR should be used for key
         // agreement or wrapping.
         let key_usage = KeyUsage::new(KeyUsageFlags::KeyEncipherment | KeyUsageFlags::KeyAgreement);
-        let mut key_usage_buffer = [0u8; KEY_VALUE_EXTENSION_LEN];
         let key_usage_extension = key_usage_extension!(key_usage, key_usage_buffer);
 
         extensions
@@ -314,7 +320,6 @@ impl<'a> Certificate<'a> {
             ca: false,
             path_len_constraint: None,
         };
-        let mut basic_constraints_buffer = [0u8; BASIC_CONSTRAINTS_EXTENSION_LEN];
         let basic_constraints_extension =
             basic_constraints_extension!(basic_constraints, basic_constraints_buffer);
 
@@ -329,7 +334,6 @@ impl<'a> Certificate<'a> {
             authority_cert_issuer: None,
             authority_cert_serial_number: None,
         };
-        let mut auth_key_id_buffer = [0u8; AUTH_KEY_ID_EXTENSION_LEN];
         let auth_key_id_extension = auth_key_extension!(auth_key_id, auth_key_id_buffer);
 
         extensions
@@ -350,7 +354,7 @@ impl<'a> Certificate<'a> {
             serial_number,
             issuer,
             validity,
-            signature: ed25519::pkcs8::ALGORITHM_ID,
+            signature: ED25519_ALGORITHM_ID,
             subject,
             subject_public_key_info,
             issuer_unique_id: None,
@@ -371,7 +375,7 @@ impl<'a> Certificate<'a> {
         let certificate = Certificate {
             tbs_certificate,
             signature: BitStringRef::from_bytes(signature_bytes_ref).map_err(Error::InvalidDer)?,
-            signature_algorithm: ed25519::pkcs8::ALGORITHM_ID,
+            signature_algorithm: ED25519_ALGORITHM_ID,
         };
 
         certificate
